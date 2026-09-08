@@ -28,7 +28,16 @@ export async function connectDb() {
     serverSelectionTimeoutMS: 20000,
     family: 4,
   });
-  await client.connect();
+  try {
+    await client.connect();
+  } catch (error) {
+    if (error?.code === 8000 || /bad auth|authentication failed/i.test(error?.message || "")) {
+      throw new Error(
+        "Atlas rechazó usuario/contraseña (bad auth). En Atlas → Database Access crea un usuario de base de datos (no el login de la web), pega esa URI en MONGODB_URI y, si la clave tiene @ # / :, codifícala. No pongas comillas en la variable de Render."
+      );
+    }
+    throw error;
+  }
   db = client.db(DB_NAME);
   await ensureCollections(db);
   return db;

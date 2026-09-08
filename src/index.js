@@ -12,11 +12,36 @@ import {
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
-const FRONT_ORIGIN = process.env.FRONT_ORIGIN || "http://127.0.0.1:4173";
+
+function allowedOrigins() {
+  return String(process.env.FRONT_ORIGIN || "")
+    .split(",")
+    .map((value) => value.trim().replace(/\/$/, ""))
+    .filter(Boolean);
+}
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  const extras = allowedOrigins();
+  const local = [
+    "http://127.0.0.1:4173",
+    "http://localhost:4173",
+    "http://127.0.0.1:5500",
+    "http://localhost:5500",
+  ];
+  if (extras.includes(origin) || local.includes(origin)) return true;
+  try {
+    return new URL(origin).hostname.endsWith(".vercel.app");
+  } catch {
+    return false;
+  }
+}
 
 app.use(
   cors({
-    origin: [FRONT_ORIGIN, "http://localhost:4173", "http://127.0.0.1:5500"],
+    origin(origin, callback) {
+      callback(null, isAllowedOrigin(origin));
+    },
   })
 );
 app.use(express.json({ limit: "256kb" }));
@@ -173,12 +198,15 @@ app.use((_req, res) => {
 });
 
 const server = await connectDb();
-app.listen(PORT, () => {
-  console.log(`Mayor Back listo en http://127.0.0.1:${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Mayor Back listo en el puerto ${PORT}`);
   console.log(`Base: ${server.databaseName} · projectId: ${PROJECT_ID}`);
 });
 
-process.on("SIGINT", async () => {
+process.on("SIGINT", shutdown);
+process.on("SIGTERM", shutdown);
+
+async function shutdown() {
   await closeDb();
   process.exit(0);
-});
+}
